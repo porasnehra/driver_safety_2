@@ -125,8 +125,10 @@ class VisionProcessor:
             perclos = (self.eye_closed_frames / self.total_frames) * 100
             telemetry["perclos"] = round(perclos, 2)
 
-            if self._check_duchenne_marker(landmarks, left_ear, right_ear):
-                self.spoof_flags.append("Eye-Mouth Disconnect (Forced Expression)")
+            # Temporarily disabled for testing: The Duchenne marker check is too sensitive 
+            # for varying camera angles and can flag normal talking as a "Forced Expression".
+            # if self._check_duchenne_marker(landmarks, left_ear, right_ear):
+            #     self.spoof_flags.append("Eye-Mouth Disconnect (Forced Expression)")
 
             fatigue = 0
             if perclos > 15.0: fatigue += 20
