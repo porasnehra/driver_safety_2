@@ -103,6 +103,11 @@ async def analyze_video(file: UploadFile = File(...)):
     if frames_processed == 0 or not final_telemetry:
         raise HTTPException(status_code=400, detail="Video contained no valid frames.")
 
+    # Final variance check for static images (Spoofing)
+    static_spoof_flags = processor.finalize_spoof_check()
+    for flag in static_spoof_flags:
+        all_spoof_reasons.add(flag)
+
     # Calculate overall risk score
     risk_score = final_telemetry["fatigue_score"]
     spoof_detected = len(all_spoof_reasons) > 0

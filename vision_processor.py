@@ -33,6 +33,8 @@ class VisionProcessor:
         self.is_blinking = False
         self.last_blink_duration = 0
         self.spoof_flags = []
+        self.ear_history = []
+        self.mouth_history = []
         
     def _apply_clahe(self, frame: np.ndarray) -> np.ndarray:
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
@@ -106,6 +108,12 @@ class VisionProcessor:
             right_ear = self._calculate_ear(landmarks, RIGHT_EYE)
             avg_ear = (left_ear + right_ear) / 2.0
             telemetry["ear"] = round(avg_ear, 3)
+            self.ear_history.append(avg_ear)
+            
+            mouth_left = landmarks[MOUTH_CORNERS[0]]
+            mouth_right = landmarks[MOUTH_CORNERS[1]]
+            mouth_width = self._euclidean_distance(mouth_left, mouth_right)
+            self.mouth_history.append(mouth_width)
 
             EAR_THRESHOLD = 0.21
             if avg_ear < EAR_THRESHOLD:
@@ -125,11 +133,6 @@ class VisionProcessor:
             perclos = (self.eye_closed_frames / self.total_frames) * 100
             telemetry["perclos"] = round(perclos, 2)
 
-            # Temporarily disabled for testing: The Duchenne marker check is too sensitive 
-            # for varying camera angles and can flag normal talking as a "Forced Expression".
-            # if self._check_duchenne_marker(landmarks, left_ear, right_ear):
-            #     self.spoof_flags.append("Eye-Mouth Disconnect (Forced Expression)")
-
             fatigue = 0
             if perclos > 15.0: fatigue += 20
             if perclos > 25.0: fatigue += 30
@@ -143,3 +146,22 @@ class VisionProcessor:
                 self.spoof_flags = []
                 
         return telemetry
+
+    def finalize_spoof_check(self) -> List[str]:
+        """
+        Runs at the end of the video batch.
+        Calculates the standard deviation of facial movements.
+        If a face is perfectly static (e.g. a printed photograph),
+        the variance will be extremely close to 0.
+        """
+        final_flags = []
+        if len(self.ear_history) > 10 and len(self.mouth_history) > 10:
+            ear_variance = np.std(self.ear_history)
+            mouth_variance = np.std(self.mouth_history)
+            
+            # A real human face always has micro-movements (> 0.001)
+            # A printed photo will have variance < 0.0005 depending on camera noise
+            if ear_variance < 0.001 and mouth_variance < 0.001:
+                final_flags.append("Static Image Detected (Zero Micro-Movements)")
+                
+        return final_flags
