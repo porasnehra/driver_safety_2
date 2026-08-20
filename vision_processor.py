@@ -72,9 +72,9 @@ class VisionProcessor:
         face_width = self._euclidean_distance(landmarks[LEFT_EYE[3]], landmarks[RIGHT_EYE[0]])
         normalized_mouth_width = mouth_width / face_width if face_width > 0 else 0
         
-        is_smiling = normalized_mouth_width > 0.45
+        is_smiling = normalized_mouth_width > 0.55  # Increased threshold to reduce false positives
         avg_ear = (left_ear + right_ear) / 2.0
-        eyes_wide = avg_ear > 0.30
+        eyes_wide = avg_ear > 0.35  # Increased threshold
 
         return is_smiling and eyes_wide
 
@@ -120,8 +120,6 @@ class VisionProcessor:
                     duration_ms = int((blink_end_time - self.blink_start_time) * 1000)
                     if duration_ms > 0:
                         self.last_blink_duration = duration_ms
-                    if 0 < duration_ms < 50:
-                        self.spoof_flags.append("Unnatural Micro-blink (<50ms)")
             
             telemetry["blink_duration_ms"] = self.last_blink_duration
             perclos = (self.eye_closed_frames / self.total_frames) * 100

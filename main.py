@@ -54,11 +54,16 @@ async def analyze_video(file: UploadFile = File(...)):
         fps = 30.0
 
     processor = VisionProcessor()
-    frame_count = 0
+    frames_processed = 0
     final_telemetry = None
     all_spoof_reasons = set()
     max_blink = 0
     bad_lighting_frames = 0
+
+    # Process at max 10 FPS for speed
+    target_fps = 10.0
+    frame_interval_ms = 1000.0 / target_fps
+    next_process_time_ms = 0.0
 
     try:
         while True:
@@ -66,8 +71,15 @@ async def analyze_video(file: UploadFile = File(...)):
             if not ret:
                 break
                 
-            frame_count += 1
-            timestamp_sec = frame_count / fps
+            current_time_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            
+            # Skip frames to achieve target FPS
+            if current_time_ms < next_process_time_ms:
+                continue
+                
+            next_process_time_ms = current_time_ms + frame_interval_ms
+            frames_processed += 1
+            timestamp_sec = current_time_ms / 1000.0
             
             # Process the frame
             telemetry = processor.process_frame(frame, timestamp_sec)
@@ -88,7 +100,7 @@ async def analyze_video(file: UploadFile = File(...)):
         cap.release()
         os.remove(tmp_path)
 
-    if frame_count == 0 or not final_telemetry:
+    if frames_processed == 0 or not final_telemetry:
         raise HTTPException(status_code=400, detail="Video contained no valid frames.")
 
     # Calculate overall risk score
@@ -104,12 +116,12 @@ async def analyze_video(file: UploadFile = File(...)):
     risk_level = determine_risk_level(overall_score)
 
     environment_warning = None
-    if bad_lighting_frames > (frame_count * 0.5):
+    if bad_lighting_frames > (frames_processed * 0.5):
         environment_warning = "Warning: More than 50% of the video had poor lighting (HIGH or LOW). Please adjust cabin lighting."
 
     return VideoAnalysisResult(
         status="success",
-        total_frames_processed=frame_count,
+        total_frames_processed=frames_processed,
         overall_risk_score=overall_score,
         risk_level=risk_level,
         environment_warning=environment_warning,
