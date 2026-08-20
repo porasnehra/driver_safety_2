@@ -5,7 +5,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 # MediaPipe Initialization
 mp_face_mesh = mp.solutions.face_mesh
