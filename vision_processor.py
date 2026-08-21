@@ -159,9 +159,10 @@ class VisionProcessor:
             ear_variance = np.std(self.ear_history)
             mouth_variance = np.std(self.mouth_history)
             
-            # A real human face always has micro-movements (> 0.001)
-            # A printed photo will have variance < 0.0005 depending on camera noise
-            if ear_variance < 0.001 and mouth_variance < 0.001:
+            # MediaPipe uses a temporal smoothing filter. If a real person sits perfectly still, 
+            # the filter locks the landmarks, causing the variance to drop below 0.001 artificially.
+            # We must set this threshold astronomically low (0.00001) to only catch literal frozen images.
+            if ear_variance < 0.00001 and mouth_variance < 0.00001:
                 final_flags.append("Static Image Detected (Zero Micro-Movements)")
                 
         return final_flags
