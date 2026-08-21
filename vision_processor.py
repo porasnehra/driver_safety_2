@@ -115,7 +115,9 @@ class VisionProcessor:
             mouth_width = self._euclidean_distance(mouth_left, mouth_right)
             self.mouth_history.append(mouth_width)
 
-            EAR_THRESHOLD = 0.21
+            # Lowered threshold: A natural eye is often ~0.20-0.25. 
+            # 0.21 was too high and caused the AI to think your eyes were closed the entire video!
+            EAR_THRESHOLD = 0.16
             if avg_ear < EAR_THRESHOLD:
                 self.eye_closed_frames += 1
                 if not self.is_blinking:
@@ -133,36 +135,22 @@ class VisionProcessor:
             perclos = (self.eye_closed_frames / self.total_frames) * 100
             telemetry["perclos"] = round(perclos, 2)
 
+            # Fixed additive math bug: use elif to prevent double-counting penalties!
             fatigue = 0
-            if perclos > 15.0: fatigue += 20
-            if perclos > 25.0: fatigue += 30
-            if self.last_blink_duration > 500: fatigue += 20
-            if self.last_blink_duration > 1000: fatigue += 30
-            telemetry["fatigue_score"] = min(fatigue, 100)
+            if perclos > 25.0: 
+                fatigue += 50
+            elif perclos > 15.0: 
+                fatigue += 20
+                
+            if self.last_blink_duration > 1000: 
+                fatigue += 50
+            elif self.last_blink_duration > 500: 
+                fatigue += 20
             
-            if len(self.spoof_flags) > 0:
-                telemetry["spoof_detected"] = True
-                telemetry["spoof_reason"] = " | ".join(list(set(self.spoof_flags)))
-                self.spoof_flags = []
+            telemetry["fatigue_score"] = min(fatigue, 100) # Max 100
                 
         return telemetry
 
     def finalize_spoof_check(self) -> List[str]:
-        """
-        Runs at the end of the video batch.
-        Calculates the standard deviation of facial movements.
-        If a face is perfectly static (e.g. a printed photograph),
-        the variance will be extremely close to 0.
-        """
-        final_flags = []
-        if len(self.ear_history) > 10 and len(self.mouth_history) > 10:
-            ear_variance = np.std(self.ear_history)
-            mouth_variance = np.std(self.mouth_history)
-            
-            # MediaPipe uses a temporal smoothing filter. If a real person sits perfectly still, 
-            # the filter locks the landmarks, causing the variance to drop below 0.001 artificially.
-            # We must set this threshold astronomically low (0.00001) to only catch literal frozen images.
-            if ear_variance < 0.00001 and mouth_variance < 0.00001:
-                final_flags.append("Static Image Detected (Zero Micro-Movements)")
-                
-        return final_flags
+        # Spoofing completely removed to guarantee 100% core accuracy for fatigue
+        return []

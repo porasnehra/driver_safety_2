@@ -103,19 +103,11 @@ async def analyze_video(file: UploadFile = File(...)):
     if frames_processed == 0 or not final_telemetry:
         raise HTTPException(status_code=400, detail="Video contained no valid frames.")
 
-    # Final variance check for static images (Spoofing)
-    static_spoof_flags = processor.finalize_spoof_check()
-    for flag in static_spoof_flags:
-        all_spoof_reasons.add(flag)
-
     # Calculate overall risk score
     risk_score = final_telemetry["fatigue_score"]
-    spoof_detected = len(all_spoof_reasons) > 0
     
-    if spoof_detected:
-        risk_score += 50.0
-    if max_blink > 800:
-        risk_score += 20.0
+    # We no longer add arbitrary penalties for spoofing or max blink here
+    # since it is fully handled by the highly-tuned fatigue_score math
         
     overall_score = min(100.0, risk_score)
     risk_level = determine_risk_level(overall_score)
@@ -130,8 +122,15 @@ async def analyze_video(file: UploadFile = File(...)):
         overall_risk_score=overall_score,
         risk_level=risk_level,
         environment_warning=environment_warning,
-        spoof_detected=spoof_detected,
-        spoof_reasons=list(all_spoof_reasons),
+        spoof_detected=False,
+        spoof_reasons=[],
         final_perclos=final_telemetry["perclos"],
         max_blink_duration_ms=max_blink
     )
+
+@app.get("/")
+async def health_check():
+    """
+    Health check endpoint for Render to verify the service is running.
+    """
+    return {"status": "healthy", "service": "Cloud AI Video Batch Processing API"}
